@@ -1,0 +1,31 @@
+{
+ "DL_ADMIN":
+   {
+      "object_owner":{
+        "schema_privileges":[
+            {
+               "schema" : "LAKE",
+               "privileges" : [ "SELECT" ],
+               "privileges_with_grant_option" : ["SELECT"]
+            }
+         ], 
+        "roles": [
+          "Z_CREATE_REMOTETABLES"
+ 	    ]
+      },
+      "application_user":{  
+    
+         "schema_privileges":[
+            {
+               "schema" : "LAKE",
+               "privileges" : [ "SELECT" ],
+               "privileges_with_grant_option" : [  "SELECT" ]
+            }
+         ],
+      	"roles" : [
+          "Z_CREATE_REMOTETABLES"
+     	]
+      
+      }
+   }
+}

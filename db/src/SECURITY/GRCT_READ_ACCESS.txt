@@ -1,0 +1,227 @@
+{
+  "role": {
+    "name": "RCT_READ_ACCESS#",
+    "object_privileges": [
+      {
+        "name": "PRAESENTATION_USER_ACCESS",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "ACTIVE_ASSORTMENT_DC",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "FC_FINAL_PER_DC",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "FC_FINAL_PER_S_ORG",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "ART_MASTER",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "COST_PRICE_PROJECTION_WEEKROW12",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "CPIT_PLUS_HIST_TABLE",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "ERP_DC_STOCK",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "ERP_INCOTERMS_SUBRANGE_LFM2",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "NO_OF_STORES_CORRECTED",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "ON_DISPLAY_DATA",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "PO_TABEL_USER_ACCESS",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "PRAESENTATION_C_PIT_USER_ACCESS",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "PRAESENTATION_ROS_DATA_TABEL",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "SHIPPING_INFO_SLT",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "SUBSTITUTION_LIST_PRAESENTATION_TABEL",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "SUBSTITUTION_LIST_TO_FC_TABLE",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "TIME",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "VENDOR_DEVIDED_BETWEEN_PG_TABEL",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "AKK_FC",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "ESTIMATED_SAFETY_LIMIT_TABEL",
+        "type": "TABLE",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      },
+      {
+        "name": "PossibleDates",
+        "type": "VIEW",
+        "privileges": [
+          "SELECT"
+        ],
+        "privileges_with_grant_option": [
+          "SELECT"
+        ]
+      }
+    ]
+  }
+}

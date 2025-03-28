@@ -1,0 +1,20 @@
+{
+  "mapEmail2Json": {
+    "target": {
+      "object": "ZFCT::mapEmail2Json",
+      "schema": "YCOMDEAMON"
+    }
+  },
+  "addSimpleMail": {
+    "target": {
+      "object": "ZPRC::AddMail",
+      "schema": "YCOMDEAMON"
+    }
+  },
+  "addMail": {
+    "target": {
+      "object": "ZPRC::AddMailMultipleReceivers",
+      "schema": "YCOMDEAMON"
+    }
+  }
+}

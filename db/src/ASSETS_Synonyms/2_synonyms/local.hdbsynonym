@@ -1,0 +1,38 @@
+{
+  "DUMMY": {
+    "target": {
+      "object": "DUMMY",
+      "schema": "SYS"
+    }
+  },
+  "LOCAL/M_SESSION_CONTEXT": {
+    "target": {
+      "object": "M_SESSION_CONTEXT",
+      "schema": "SYS"
+    }
+  },
+  "LOCAL/M_DATABASES": {
+    "target": {
+      "object": "M_DATABASES",
+      "schema": "SYS"
+    }
+  },
+  "getVariables": {
+    "target": {
+      "object": "getVariables",
+      "schema": "YCARDINAL"
+    }
+  },
+  "LOCAL_TABLES": {
+    "target": {
+      "object": "TABLES",
+      "schema": "SYS"
+    }
+  },
+  "LOCAL_COLUMNS": {
+    "target": {
+      "object": "TABLE_COLUMNS",
+      "schema": "SYS"
+    }
+  }
+}

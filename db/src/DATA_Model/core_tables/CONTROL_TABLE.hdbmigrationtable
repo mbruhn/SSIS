@@ -1,0 +1,6 @@
+== version = 1 
+COLUMN table JOB_CONTROL_TABLE (
+		jobid	NVARCHAR(127),
+    	status	NVARCHAR(10),
+		PRIMARY KEY (jobid) 
+    )

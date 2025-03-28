@@ -1,0 +1,317 @@
+LIBRARY "overWatch" 
+	LANGUAGE SQLSCRIPT AS
+	 
+	BEGIN
+	
+	/* Shared variables*/ 
+		private variable cSchemaForLake     constant nvarchar(127) := 'LAKE';
+		private variable cNoOwnerSubstitute constant nvarchar(127) := 'DL_ADMIN';
+		
+		private variable cTrue  constant integer := 1;
+		private variable cFalse constant integer := 0;
+		
+		private variable cRC_Ok constant integer := 0;
+		private variable cRC_Fail constant integer := 1;		
+		
+		
+		PUBLIC FUNCTION "statusToString"(
+			IN statusArray boolean array
+		) returns statusString nvarchar(10)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			i integer; 
+		BEGIN
+		                     
+			statusString := '';
+			FOR i IN 1..CARDINALITY(:statusArray) DO
+				if :statusArray[:i] = false or :statusArray[:i] is null then 
+				  	statusString := statusString || CHAR(32);
+				else
+			    	statusString := statusString || char(64+:i);
+				end if;
+			END FOR;
+		
+		END;
+		
+		PUBLIC FUNCTION "statusToArray"(
+			IN statusString nvarchar(10)
+		) returns statusArray boolean array
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			i integer; 
+		BEGIN
+			FOR i IN 1..LENGTH(:statusstring) DO
+				IF substring(:statusstring,:i,1) = CHAR(32) then 
+					statusArray[:i] := false;
+				ELSE
+					statusArray[:i] := true;
+				END IF;
+			END FOR;
+		END;
+
+		PUBLIC PROCEDURE "getLoadStatus"(
+			IN idataLoadId nvarchar(256), 
+			IN idataReadyTS timestamp,
+			OUT odl_load_status "core.DL_LOAD_STATUS",
+			OUT ostatusArray  boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			rcount integer;
+		    procstatus nvarchar(10) := '          ';
+		BEGIN
+		    
+			select count(*) into rcount from  DL_LOAD_STATUS 
+			where "BWDataloadId" = idataLoadId 
+		    and   "BWDataReadyTS" = idataReadyTS;
+		    
+		    if (:rcount = 0) then 
+			    insert into DL_LOAD_STATUS ("BWDataloadId","BWDataReadyTS","processingStatus") values ( :idataLoadId, :idataReadyTS, :procstatus);
+			    commit;
+			end if;
+			
+			odl_load_status = select top 1 * from  DL_LOAD_STATUS 
+			Where "BWDataloadId" = idataLoadId 
+			and   "BWDataReadyTS" = idataReadyTS;
+			
+		 
+			ostatusArray := "statusToArray"(:odl_load_status."processingStatus"[1]);
+			
+		  
+		END;	
+		
+		
+		
+		
+		
+		
+		/*Updates the DL status */		
+		PUBLIC PROCEDURE "truncateRCTtable"(
+			IN iTableName nvarchar(127), 
+			IN iSeconds integer default 5
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			load_status "core.DL_LOAD_STATUS";
+		
+		BEGIN	USING SQLSCRIPT_SYNC AS SYNCLIB;
+			
+			INSERT INTO "virtRCT_DL_PendingTruncates" ("TableName") VALUES (:iTableName); 
+			CALL SYNCLIB:SLEEP_SECONDS(:iSeconds);
+			
+		END;		
+		
+			
+			
+			
+			
+		/*Updates the DL status */		
+		PUBLIC PROCEDURE "updateLoadStatus"(
+			IN idataLoadId nvarchar(256), 
+			IN idataReadyTS timestamp,
+			IN idl_load_status "core.DL_LOAD_STATUS",
+			IN istatusArray  boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			load_status "core.DL_LOAD_STATUS";
+		
+		BEGIN
+		
+			:load_status.insert(:idl_load_status);
+			load_status."processingStatus"[1] := "statusToString"(:iStatusArray);
+			
+			UPSERT DL_LOAD_STATUS (
+		        "BWDataloadId",    "BWDataReadyTS",   "BWDataCountTS",   "BWDataCount", 
+		        "InTableName",     "InTabCountTS",    "InTabCount",      "OutTableName", 
+		        "OutTabCountTS",   "OutTabCount",     "RCTTableName",    "RCTTableCountTS", 
+		        "RCTTableCount",   "RCTArchName",     "RCTArchCountTS",  "RCTArchCount", 
+		        "Steps",           "StartedTS",       "ModifiedTS",      "EndedTS", 
+		        "RuntimeSec",      "processingStatus"
+		    )
+		    SELECT 
+		        "BWDataloadId",    "BWDataReadyTS",   "BWDataCountTS",   "BWDataCount", 
+		        "InTableName",     "InTabCountTS",    "InTabCount",      "OutTableName", 
+		        "OutTabCountTS",   "OutTabCount",     "RCTTableName",    "RCTTableCountTS", 
+		        "RCTTableCount",   "RCTArchName",     "RCTArchCountTS",  "RCTArchCount", 
+		        "Steps",           "StartedTS",       "ModifiedTS",      "EndedTS", 
+		        "RuntimeSec",      "processingStatus"
+		    FROM :load_status;
+			
+			commit work;
+			
+		END;		
+		
+		/*  Sync BW status table directly */
+		PUBLIC PROCEDURE "syncBWStatus"(
+			IN idataLoadId nvarchar(256), 
+			IN idataReadyTS timestamp
+		
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+		 	bwstatus "core.BW_STATUS";
+			rs row like "core.BW_STATUS";
+			recordcount integer;
+		BEGIN
+		
+		    select top 1
+				"4ZBI_CP10_COMPID",  -- BI_App_Obj
+				"4ZBI_CP10_ZDTAAREA",
+				"4ZBI_CP10_LATEST_DT",
+				"4ZBI_CP10_LATEST_TM",
+				"4ZBI_CP10_BIC_ZPCENDDT",
+				"4ZBI_CP10_BIC_ZPCENDTM",
+	    		"4ZBI_CP10_BIC_ZPCNXTDT",
+				"4ZBI_CP10_BIC_ZPCNXTTM",
+				"4ZBI_CP10_BIC_ZPCSTDT",
+				"4ZBI_CP10_BIC_ZPCSTTM",	 
+				"4ZBI_CP10_TCTPRCSCHN"
+			into rs
+		    from V_SOURCE_BWDATA_READY_DATE 
+		    where "BWDataloadId" = :idataLoadId
+		    and   "BWDataReadyTS" = :idataReadyTS;
+
+			-- Update RCT remote table with the current record in load status
+			-- does a record exist ?
+			select count(*) into recordcount from  "virtRCT_BW_STATUS" 
+			where  "BI_App_Obj" = :rs."4ZBI_CP10_COMPID"
+			and    "A4ZBI_CP10LATEST_DT" = :rs."4ZBI_CP10_LATEST_DT"
+			and    "A4ZBI_CP10LATEST_TM" = :rs."4ZBI_CP10_LATEST_TM";
+			
+			if :recordcount = 0 then -- no record is there 
+			-- insert entry
+				
+				insert into "virtRCT_BW_STATUS" (
+			  		"BI_App_Obj",   
+					"A4ZBI_CP10ZDTAAREA",
+					"A4ZBI_CP10LATEST_DT",
+					"A4ZBI_CP10LATEST_TM",
+					"A4ZBI_CP10BIC_ZPCENDDT",
+					"A4ZBI_CP10BIC_ZPCENDTM",
+		    		"A4ZBI_CP10BIC_ZPCNXTDT",
+					"A4ZBI_CP10BIC_ZPCNXTTM",
+					"A4ZBI_CP10BIC_ZPCSTDT",
+					"A4ZBI_CP10BIC_ZPCSTTM",	 
+					"A4ZBI_CP10TCTPRCSCHN"
+					--"log_time"
+				) 
+				values (
+					:rs."4ZBI_CP10_COMPID",  -- BI_App_Obj
+					:rs."4ZBI_CP10_ZDTAAREA",
+					:rs."4ZBI_CP10_LATEST_DT",
+					:rs."4ZBI_CP10_LATEST_TM",
+					:rs."4ZBI_CP10_BIC_ZPCENDDT",
+					:rs."4ZBI_CP10_BIC_ZPCENDTM",
+					:rs."4ZBI_CP10_BIC_ZPCNXTDT",
+					:rs."4ZBI_CP10_BIC_ZPCNXTTM",
+					:rs."4ZBI_CP10_BIC_ZPCSTDT",
+					:rs."4ZBI_CP10_BIC_ZPCSTTM",	 
+					:rs."4ZBI_CP10_TCTPRCSCHN"
+					-- current_timestamp    
+				);
+
+			else
+			-- update entry
+			
+				update "virtRCT_BW_STATUS"  
+				set "A4ZBI_CP10ZDTAAREA"     = :rs."4ZBI_CP10_ZDTAAREA",
+					"A4ZBI_CP10LATEST_DT"    = :rs."4ZBI_CP10_LATEST_DT",
+					"A4ZBI_CP10LATEST_TM"    = :rs."4ZBI_CP10_LATEST_TM",
+					"A4ZBI_CP10BIC_ZPCENDDT" = :rs."4ZBI_CP10_BIC_ZPCENDDT",
+					"A4ZBI_CP10BIC_ZPCENDTM" = :rs."4ZBI_CP10_BIC_ZPCENDTM",
+					"A4ZBI_CP10BIC_ZPCNXTDT" = :rs."4ZBI_CP10_BIC_ZPCNXTDT",
+					"A4ZBI_CP10BIC_ZPCNXTTM" = :rs."4ZBI_CP10_BIC_ZPCNXTTM",
+					"A4ZBI_CP10BIC_ZPCSTDT"  = :rs."4ZBI_CP10_BIC_ZPCSTDT",
+					"A4ZBI_CP10BIC_ZPCSTTM"  = :rs."4ZBI_CP10_BIC_ZPCSTTM",
+					"A4ZBI_CP10TCTPRCSCHN"   = :rs."4ZBI_CP10_TCTPRCSCHN"
+					-- "log_time" = current_timestamp
+				where  "BI_App_Obj"    = :rs."4ZBI_CP10_COMPID"
+				and    "A4ZBI_CP10LATEST_DT" = :rs."4ZBI_CP10_LATEST_DT"
+				and    "A4ZBI_CP10LATEST_TM" = :rs."4ZBI_CP10_LATEST_TM";
+			
+			
+			end if;
+			
+			commit work;
+			
+		END;		
+
+
+		/* Syncs the dataset from data lake to rct */
+		PUBLIC PROCEDURE "syncLoadStatus"(
+			IN idataLoadId nvarchar(256), 
+			IN idataReadyTS timestamp
+		
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+		 	load_status "core.DL_LOAD_STATUS";
+			statusArray  boolean array;
+			recordcount integer;
+			rs row like "core.DL_LOAD_STATUS";
+		BEGIN
+		
+		    call "getLoadStatus"(idataLoadId => :idataloadid ,  idataReadyTS => :idatareadyts, odl_load_status => :load_status, ostatusArray => :statusArray);
+		    
+		     select top 1 * into rs from :load_status;
+
+			-- Update RCT remote table with the current record in load status
+			select count(*) into recordcount from  "virtRCT_DL_STATUS" where  "BWDataloadId" = :idataLoadId; -- only 1 line per load and "BWDataReadyTS" = :idataReadyTS;
+			
+			if :recordcount = 0 then
+			-- insert entry
+				
+				insert into "virtRCT_DL_STATUS" (
+					   "BWDataloadId",      "BWDataReadyTS",     "BWDataCountTS",     "BWDataCount",      "InTableName",         "InTabCountTS",      "InTabCount",
+                       "OutTableName",      "OutTabCountTS",     "OutTabCount",       "RCTTableName",     "RCTTableCountTS",     "RCTTableCount",
+                       "RCTArchName",       "RCTArchCountTS",    "RCTArchCount",      "Steps",            "StartedTS",           "ModifiedTS", 
+                       "EndedTS",           "RuntimeSec",        "processingStatus"
+                       ) 
+				values 
+                       (
+                       	:rs."BWDataloadId", :rs."BWDataReadyTS",  :rs."BWDataCountTS", :rs."BWDataCount",  :rs."InTableName",     :rs."InTabCountTS",  :rs."InTabCount",
+                        :rs."OutTableName", :rs."OutTabCountTS",  :rs."OutTabCount",   :rs."RCTTableName", :rs."RCTTableCountTS", :rs."RCTTableCount",
+                        :rs."RCTArchName",  :rs."RCTArchCountTS", :rs."RCTArchCount",  :rs."Steps",        :rs."StartedTS",       :rs."ModifiedTS",
+                        :rs."EndedTS",      :rs."RuntimeSec",     :rs."processingStatus"
+				);
+
+			else
+			-- update entry
+			
+				update "virtRCT_DL_STATUS"
+				set 
+					"BWDataReadyTS"   = :idataReadyTS,  -- this one results in multiple records in the remote target... 
+			
+				    "BWDataCountTS"   = :rs."BWDataCountTS",
+				    "BWDataCount"     = :rs."BWDataCount",
+				    "InTableName"     = :rs."InTableName",
+				    "InTabCountTS"    = :rs."InTabCountTS",
+				    "InTabCount"      = :rs."InTabCount",
+				    "OutTableName"    = :rs."OutTableName",
+				    "OutTabCountTS"   = :rs."OutTabCountTS",
+				    "OutTabCount"     = :rs."OutTabCount",
+				    "RCTTableName"    = :rs."RCTTableName",
+				    "RCTTableCountTS" = :rs."RCTTableCountTS",
+				    "RCTTableCount"   = :rs."RCTTableCount",
+				    "RCTArchName"     = :rs."RCTArchName",
+				    "RCTArchCountTS"  = :rs."RCTArchCountTS",
+				    "RCTArchCount"    = :rs."RCTArchCount",
+				    "Steps"           = :rs."Steps",
+				    "StartedTS"       = :rs."StartedTS",
+				    "ModifiedTS"      = :rs."ModifiedTS",
+				    "EndedTS"         = :rs."EndedTS",
+				    "RuntimeSec"      = :rs."RuntimeSec",
+				    "processingStatus" = :rs."processingStatus"
+				where "BWDataloadId"   = :idataLoadId;
+			--	and   "BWDataReadyTS"  = :idataReadyTS; -- this one results in multiple records in the remote target... 
+			end if;
+			
+			commit work;
+		END;		
+
+
+
+	END;
+
+

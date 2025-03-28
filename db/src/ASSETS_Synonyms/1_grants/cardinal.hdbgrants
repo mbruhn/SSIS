@@ -1,0 +1,14 @@
+{
+	"ZCARDINAL_Service": {
+		"object_owner": {
+    		"container_roles" : [
+        		"satelliteAccessG#"
+   			]
+   },
+	"application_user": {
+    	"container_roles" : [
+        	"satelliteAccess"
+    		]
+    }
+  }
+}

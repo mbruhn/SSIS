@@ -1,0 +1,5 @@
+SCHEDULER JOB "RCT_LoadChecker"
+CRON '* * * * * */5 0'
+/*CRON <year> <month> <date> <weekday> <hour>/2 <minute> <seconds> */
+/*CRON <year> <month> <date> <weekday> <hour> <minute>/5 <seconds> */
+DISABLE PROCEDURE "SSIS_CheckToLoad"

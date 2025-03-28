@@ -1,0 +1,38 @@
+== version = 2
+COLUMN table DL_LOAD_STATUS
+(
+	"BWDataloadId" NVARCHAR(256),
+	"BWDataReadyTS" TIMESTAMP,
+	
+	"BWDataCountTS" TIMESTAMP,
+	"BWDataCount" INTEGER,
+	
+	"InTableName" NVARCHAR(256),
+	"InTabCountTS" TIMESTAMP,
+	"InTabCount" INTEGER,
+	
+	"OutTableName" NVARCHAR(256),
+	"OutTabCountTS" TIMESTAMP,
+	"OutTabCount" INTEGER,
+	
+	"RCTTableName" NVARCHAR(256),
+	"RCTTableCountTS" TIMESTAMP,
+	"RCTTableCount" INTEGER,
+	
+	"RCTArchName" NVARCHAR(256),
+	"RCTArchCountTS" TIMESTAMP,
+	"RCTArchCount" INTEGER,
+	
+	"Steps" NVARCHAR(20),
+
+	"StartedTS" TIMESTAMP,
+	"ModifiedTS" TIMESTAMP,
+	"EndedTS" TIMESTAMP,
+	"RuntimeSec" INTEGER,
+	"processingStatus" nvarchar(10),
+  PRIMARY KEY ("BWDataloadId","BWDataReadyTS") 
+) PAGE LOADABLE
+
+== migration = 2 
+alter table DL_LOAD_STATUS add ("processingStatus" nvarchar(10));
+

@@ -1,0 +1,127 @@
+FUNCTION "Primer_RCT70_72"(in ipfromdate date default null, iptodate date default null)
+	RETURNS table (
+		"0SUPP_PLANT"	NVARCHAR(4), 	
+		"0MATERIAL" 	nvarchar(18),
+		"0CALWEEK"		nvarchar(6),
+		"ZDCMOVTYP"		nvarchar(2),
+		"WEEKNO"        integer,
+		"0ACT_DL_QTY"	decimal(18,3)	
+	)
+	        
+        
+       LANGUAGE SQLSCRIPT 
+       SQL SECURITY INVOKER  
+AS
+  ifromdate date;
+  itodate   date;
+  ikeydate  nvarchar(8) := TO_VARCHAR(CURRENT_DATE,'YYYYMMDD') ;
+  itweeks table ( weekno integer, "0CALWEEK" nvarchar(6));
+  ifromweek nvarchar(6);
+  itoweek nvarchar(6);
+
+BEGIN 
+
+   if :ipfromdate is null or trim(:ipfromdate) = '' then
+     -- set defaults current week and 104 weeks back ?! 
+	-- Previous week
+	itodate   := ADD_DAYS(CURRENT_DATE, -7);
+  	ifromdate := ADD_DAYS(:itodate, -728);-- 104*7 728 - 104 weeks back;
+   else 
+     -- use ip varaibles
+     ifromdate := :ipfromdate;
+     itodate := :iptodate;
+     
+   end if;
+   
+   ifromweek := REPLACE(ISOWEEK(:ifromdate),'-W','');
+   itoweek := REPLACE(ISOWEEK(:itodate),'-W','');
+
+   
+   /*Generate week span*/
+  
+	itweeks = SELECT cast(row_number() over () as integer) as weekno, REPLACE(ISOWEEK(GENERATED_PERIOD_END),'-W','') as "0CALWEEK" FROM SERIES_GENERATE_TIMESTAMP(
+    'INTERVAL 7 DAY', :ifromdate, :itodate);
+
+    
+    
+    
+
+	/*Extract BW data*/
+	bwdata = 
+		SELECT	
+			"0SUPP_PLANT", 	
+			"0MATERIAL", 
+			"0CALWEEK", 
+			"ZDCMOVTYP", 
+			sum("0ACT_DL_QTY") as "0ACT_DL_QTY"
+		FROM "v_BW_HCPR_ZFOG_CP02"(
+			placeholder."$$RECORDTP$$"=> 1,
+			placeholder."$$_read_nls$$"=>'off',
+			placeholder."$$keydate$$"=>  BIND_AS_VALUE(:ikeydate),
+			placeholder."$$mp_pruning_active$$"=>'1'
+			)
+	-- 	where "0MATERIAL" between :from_mat and :to_mat
+		where "0CALWEEK" between  BIND_AS_VALUE(:ifromweek) and BIND_AS_VALUE(:itoweek)
+		and   "ZSALORGDC" in ('1001','1002','1005','1015','1019','1007','1009','1027','1023')
+		and   "0SUPP_PLANT" in ('C690','C290','C090','C190','C790','C890','C411','C331','C321','C322','C323','C180','C280','C680')	
+		and   "ZDCMOVTYP" in ( '00', '02' ) 
+		and   ("0MATERIAL" between '000000000001000000' and  '000000000005899999' 
+		or    "0MATERIAL" between '000000000006000000' and  '000000000006999999' 
+		or    "0MATERIAL" between '000000000007000000' and  '000000000007999999') 
+		GROUP BY 
+			"0SUPP_PLANT", 
+			"0MATERIAL",
+			"0CALWEEK",
+			"ZDCMOVTYP";
+
+
+
+
+
+/*Generate a full series*/
+output = WITH scoped_weeks AS (
+    SELECT 
+    	weekno, 
+    	"0CALWEEK"
+    FROM :itWeeks
+),
+plant_material_combinations AS (
+    SELECT DISTINCT "0SUPP_PLANT", "0MATERIAL","ZDCMOVTYP"
+    FROM :bwdata
+),
+full_matrix AS (
+    SELECT 
+        pm."0SUPP_PLANT",
+        pm."0MATERIAL",
+        pm."ZDCMOVTYP",
+        lw.weekno,
+        lw."0CALWEEK"
+    FROM plant_material_combinations pm
+    CROSS JOIN scoped_weeks lw
+),
+filled_data AS (
+    SELECT 
+        fm."0SUPP_PLANT",
+        fm."0MATERIAL",
+        fm."0CALWEEK",
+        fm."ZDCMOVTYP",
+        fm.weekno,
+        COALESCE(ir."0ACT_DL_QTY", 0.00) AS "0ACT_DL_QTY"
+    FROM full_matrix fm
+    LEFT JOIN :bwdata ir
+        ON fm."0SUPP_PLANT" = ir."0SUPP_PLANT"
+       AND fm."0MATERIAL" = ir."0MATERIAL"
+       AND fm."ZDCMOVTYP" = ir."ZDCMOVTYP"
+       AND fm."0CALWEEK" = ir."0CALWEEK"
+       
+)
+SELECT *
+FROM filled_data
+ORDER BY "0SUPP_PLANT", "0MATERIAL", "0CALWEEK", "ZDCMOVTYP";
+
+return select * from :output;
+
+
+
+
+END;

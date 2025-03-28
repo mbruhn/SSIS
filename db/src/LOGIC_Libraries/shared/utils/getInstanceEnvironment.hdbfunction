@@ -1,0 +1,11 @@
+FUNCTION "getInstanceEnvironment"( )
+       RETURNS environment nvarchar(4)
+       LANGUAGE SQLSCRIPT 
+       SQL SECURITY DEFINER AS 
+BEGIN 
+    if CURRENT_SCHEMA like_regexpr  '.*_[0-9]+$' THEN 
+		environment = 'DEV';
+    else
+		environment = 'PROD';
+	end if;
+END;

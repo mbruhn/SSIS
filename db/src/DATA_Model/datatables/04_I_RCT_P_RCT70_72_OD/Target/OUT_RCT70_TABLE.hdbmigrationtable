@@ -1,0 +1,14 @@
+== version = 2
+COLUMN table OUT_RCT70_TABLE
+(
+	"0SUPP_PLANT"	NVARCHAR(4), 	
+	"0MATERIAL" 	nvarchar(18),
+	"0CALWEEK"		nvarchar(6),
+	"ZDCMOVTYP"		nvarchar(2),
+	"0ACT_DL_QTY"	decimal(18,3),
+	"WEEKNO"	    integer
+
+) PAGE LOADABLE
+
+== migration=2
+ALTER TABLE OUT_RCT70_TABLE add ("WEEKNO" integer);

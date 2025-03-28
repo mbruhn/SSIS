@@ -1,0 +1,9 @@
+== version = 1 
+COLUMN table LOAD_LOGS (
+	uuid			VARBINARY(16),
+    Row 			INTEGER,
+    loadtimestamp	TIMESTAMP,
+    line        	NCLOB,
+    PRIMARY KEY (UUID, ROW)
+    )
+    

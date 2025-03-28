@@ -1,0 +1,73 @@
+FUNCTION "Primer_RCT6"(in ipfromdate nvarchar(8) default null, iptodate nvarchar(8) default null)
+	RETURNS table (
+		"0SALESORG" nvarchar(4),
+		"0MAT_SALES__0PUR_GROUP" nvarchar(3),
+		"0MATERIAL" nvarchar(18),
+		"0MAT_SALES__MATSTAT01" nvarchar(2),
+		"0MATERIAL__0MATL_GROUP" nvarchar(9),
+		"0RT_PROMO" nvarchar(10),
+		"0RT_MAT_PRM__0RT_PROMOTH" nvarchar(4),
+		"0RT_MAT_PRM__ZRT_MAT1" nvarchar(4),
+		"0RT_PROMO__ZRT_PROM1"  nvarchar(8),
+		"0RT_PROMO__ZRT_PROM2"  nvarchar(8),
+		"ZRTPROM4Q" decimal(18,3)	
+	)
+       LANGUAGE SQLSCRIPT 
+       SQL SECURITY INVOKER  
+AS
+  ifromdate nvarchar(8);
+  itodate   nvarchar(8);
+ 
+BEGIN 
+
+   if :ipfromdate is null or trim(:ipfromdate) = '' then
+     -- set defaults 
+      ifromdate := TO_VARCHAR(ADD_DAYS(CURRENT_DATE, -11),'YYYYMMDD') ;
+	  itodate   := TO_VARCHAR(ADD_DAYS(CURRENT_DATE, -1),'YYYYMMDD') ;
+   
+   else 
+     -- use ip varaibles
+     ifromdate := :ipfromdate;
+     itodate := :iptodate;
+     
+   end if;
+   
+   
+
+
+	return SELECT
+		"0SALESORG",
+		"0MAT_SALES__0PUR_GROUP",
+		"0MATERIAL",
+		"0MAT_SALES__MATSTAT01",
+		"0MATERIAL__0MATL_GROUP",
+		"0RT_PROMO",
+		"0RT_MAT_PRM__0RT_PROMOTH",
+		"0RT_MAT_PRM__ZRT_MAT1",
+		"0RT_PROMO__ZRT_PROM1",
+		"0RT_PROMO__ZRT_PROM2",
+		sum("ZRTPROM4Q") as "ZRTPROM4Q"
+	FROM "v_BW_HCPR_ZFOG_CP06"(
+		PLACEHOLDER."$$DATEFROM$$" => BIND_AS_VALUE(:iFROMDATE),
+		PLACEHOLDER."$$DATETO$$" => BIND_AS_VALUE(:iTODATE))
+	where "0MATERIAL__0MATL_GROUP"	not in ('050617', '050405')
+	and "0RT_PROMO__ZRT_PRO02"		= 'X'
+	and "ZACTID"					<> '5'
+	and "0RT_PROMO__0RT_PROMOTY"	= '0005'
+	and "0DISTR_CHAN"				= '01'
+	and "0RT_PROMO__ZRT_PROM1"		between  BIND_AS_VALUE(:ifromdate) and BIND_AS_VALUE(:itodate)
+	and "0RT_MAT_PRM__ZSPGRU"		= '' 
+	and "0MAT_SALES__0MATL_GRP_1"	<> '' 
+	and "0MAT_SALES__ZSUBSACTM" 	in ('A', '')
+	group by
+		"0SALESORG",
+		"0MAT_SALES__0PUR_GROUP",
+		"0MATERIAL",
+		"0MAT_SALES__MATSTAT01",
+		"0MATERIAL__0MATL_GROUP",
+		"0RT_PROMO",
+		"0RT_MAT_PRM__0RT_PROMOTH",
+		"0RT_MAT_PRM__ZRT_MAT1",
+		"0RT_PROMO__ZRT_PROM1",
+		"0RT_PROMO__ZRT_PROM2";
+END;

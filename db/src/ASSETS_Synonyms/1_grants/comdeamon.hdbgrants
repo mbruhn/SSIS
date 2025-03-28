@@ -1,0 +1,14 @@
+{
+	"ZCOMDEAMON_Service": {
+		"object_owner": {
+    		"container_roles" : [
+        		"HDI_Access#"
+   			]
+   },
+	"application_user": {
+    	"container_roles" : [
+        	"HDI_Access"
+    		]
+    }
+  }
+}

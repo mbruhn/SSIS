@@ -1,0 +1,36 @@
+LIBRARY "mail" 
+	LANGUAGE SQLSCRIPT AS
+	 
+	BEGIN
+	
+	/* Shared variables*/ 
+		private variable cTrue  constant integer := 1;
+		private variable cFalse constant integer := 0;
+		
+		private variable cRC_Ok constant integer := 0;
+		private variable cRC_Fail constant integer := 1;		
+
+
+		PUBLIC PROCEDURE "buildLoadLogStream"(
+			IN idataLoadId nvarchar(256), 
+			IN idataReadyTS timestamp,
+			OUT oloadlogstream nclob 
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			load_status "core.DL_LOAD_STATUS";
+			statusArray  boolean array;
+			recordcount integer;
+		 
+		    
+		BEGIN using "overWatch" as ow;
+		    oloadlogstream := '';
+		    call ow:"getLoadStatus"(idataLoadId => :idataloadid ,  idataReadyTS => :idatareadyts, odl_load_status => :load_status, ostatusArray => :statusArray);
+
+			jt = select top 1 * from :load_status for json;
+			select top 1 replace(replace(jsonresult,'[',''),']','') into oloadlogstream from :jt;
+			  
+		END; -- buildLoadLogStream
+		
+		
+	END; -- Library

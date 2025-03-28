@@ -1,0 +1,62 @@
+ID: ZBUF_RCT_DL
+_schema-version: '2.1'
+description: Buffering container for RCT SSIS related loads
+version: 0.0.1
+
+modules:
+ - name: zbuf_rct_ssis_db
+   type: hdb
+   path: db
+   requires:
+    - name: zbuf_rct_ssis_hdi_db
+      properties:
+        TARGET_CONTAINER: ~{hdi-container-name}
+
+    - name: DL_ADMIN
+      group: SERVICE_REPLACEMENTS
+      properties:
+        key: database-service
+        service: ~{the-service-name}
+                          
+    - name: ZCARDINAL_Service
+      group: SERVICE_REPLACEMENTS
+      properties:
+        key: ZCARDINAL_Service
+        service: ~{the-service-name}
+                          
+    - name: ZCOMDEAMON_Service
+      group: SERVICE_REPLACEMENTS
+      properties:
+        key: ZCOMDEAMON_Service
+        service: ~{the-service-name}
+        
+resources:
+ - name: zbuf_rct_ssis_hdi_db
+   parameters:
+     config:
+        schema: ZBUF_RCT_SSIS
+   properties:
+      hdi-container-name: ${service-name}
+   type: com.sap.xs.hdi-container
+
+ - name: DL_ADMIN
+   parameters:
+      service-name: DL_ADMIN
+   properties:
+      the-service-name: ${service-name}
+   type: org.cloudfoundry.existing-service
+
+ - name: ZCARDINAL_Service
+   parameters:
+      service-name: hdi_db_ycardinal
+   properties:
+      the-service-name: ${service-name}
+   type: org.cloudfoundry.existing-service
+   
+ - name: ZCOMDEAMON_Service
+   parameters:
+      service-name: hdi_db_ycomdeamon
+   properties:
+      the-service-name: ${service-name}
+   type: org.cloudfoundry.existing-service   
+

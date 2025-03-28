@@ -1,0 +1,46 @@
+FUNCTION "LOADCHECKER"(step nvarchar(4) default 'THRU')
+       RETURNS table (dataloadID nvarchar(256), dataReadyTS timestamp) 
+       LANGUAGE SQLSCRIPT 
+       SQL SECURITY DEFINER 
+AS 
+	iloadlist table (dataloadID nvarchar(256), dataReadyTS timestamp);
+
+BEGIN 
+	:iloadlist.delete();
+	
+	/*Read source_bwdata_ready*/
+	BWcontroller = select * from V_SOURCE_BWDATA_READY_DATE;
+        
+	/*Read local controller*/
+	DLcontroller = select * from DL_LOAD_STATUS;
+	    
+	/*read target source_bwdata_ready*/
+	RCTcontroller  = select * from "virtRCT_DL_STATUS";
+	    
+	/*Detect changes and setup queue*/
+	
+	IF (upper(:step) = 'IN') then -- from bw into dl
+	--TODO  lloadlist = select dataloadID, dataReadyTS from loadchecker(BWcontroller, DLcontroller, RCTcontroller);
+		iloadList = 
+			select  "BWDataloadId" as dataloadID,"BWDataReadyTS" as dataReadyTS from :BWcontroller 
+			except 
+			select  "BWDataloadId" as dataloadID,"BWDataReadyTS" as dataReadyTS from :DLcontroller;
+			
+	ELSEIF (upper(:step) = 'OUT') then -- from dl into rct
+	--TODO  lloadlist = select dataloadID, dataReadyTS from loadchecker(BWcontroller, DLcontroller, RCTcontroller);
+		iloadList = 
+			select  "BWDataloadId" as dataloadID,"BWDataReadyTS" as dataReadyTS from :DLcontroller
+			except 
+			select  "BWDataloadId" as dataloadID,"BWDataReadyTS" as dataReadyTS from :RCTcontroller;
+	
+	ELSEIF  (upper(:step) = 'THRU') then -- from BW into rct
+		iloadList = 
+			select  "BWDataloadId" as dataloadID,"BWDataReadyTS" as dataReadyTS from :BWcontroller
+			except 
+			select  "BWDataloadId" as dataloadID,"BWDataReadyTS" as dataReadyTS from :RCTcontroller;
+	
+	END IF;
+
+	return :iloadList;
+
+END;

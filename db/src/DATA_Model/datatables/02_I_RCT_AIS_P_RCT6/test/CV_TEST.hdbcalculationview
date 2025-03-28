@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" id="CV_TEST" applyPrivilegeType="NONE" dataCategory="DIMENSION" dimensionType="STANDARD" schemaVersion="3.0" outputViewType="Projection" cacheInvalidationPeriod="NONE" enforceSqlExecution="false">
+<descriptions defaultDescription="CV_TEST"/>
+<localVariables>
+  <variable id="IP_TEST_FELT" parameter="true">
+    <descriptions defaultDescription=""/>
+    <variableProperties datatype="NVARCHAR" length="5000" mandatory="false">
+      <valueDomain type="empty"/>
+      <selection multiLine="false" type="SingleValue"/>
+    </variableProperties>
+  </variable>
+</localVariables>
+<variableMappings>
+  <mapping xsi:type="Variable:VariableMapping" dataSource="TEST_FUNCTION">
+    <targetVariable name="IPVARIABLE" resourceUri="TEST_FUNCTION"/>
+    <localVariable>IP_TEST_FELT</localVariable>
+  </mapping>
+</variableMappings>
+<dataSources>
+  <DataSource id="TEST_FUNCTION" type="TABLE_FUNCTION">
+    <resourceUri>TEST_FUNCTION</resourceUri>
+  </DataSource>
+</dataSources>
+<snapshotProcedures/>
+<calculationViews/>
+<logicalModel id="TEST_FUNCTION">
+  <attributes>
+    <attribute id="ROW" order="1" displayAttribute="false" attributeHierarchyActive="false">
+      <descriptions defaultDescription="ROW"/>
+      <keyMapping columnObjectName="TEST_FUNCTION" columnName="ROW"/>
+    </attribute>
+    <attribute id="STRING" order="2" displayAttribute="false" attributeHierarchyActive="false">
+      <descriptions defaultDescription="STRING"/>
+      <keyMapping columnObjectName="TEST_FUNCTION" columnName="STRING"/>
+    </attribute>
+  </attributes>
+  <calculatedAttributes/>
+  <baseMeasures/>
+  <calculatedMeasures/>
+  <restrictedMeasures/>
+</logicalModel>
+<layout>
+  <shapes>
+    <shape expanded="true" modelObjectName="Output" modelObjectNameSpace="MeasureGroup">
+      <upperLeftCorner x="40" y="85"/>
+    </shape>
+  </shapes>
+</layout>
+</Calculation:scenario>

@@ -1,0 +1,54 @@
+context core {
+
+/*  Simple basic types */
+	type _id          : String(127); 
+	type _numericId   : Integer;
+	type _value       : String(127);
+	type _description : LargeString;
+	
+	type _dateTime    : UTCDateTime;
+	type _bool        : Boolean;
+	type _timeStamp   : UTCTimestamp;
+	type _enumerate   : Integer;
+	
+	table type DL_LOAD_STATUS {
+		"BWDataloadId" : String(256);
+		"BWDataReadyTS"  : UTCTimestamp;
+		"BWDataCountTS" : UTCTimestamp;
+		"BWDataCount" : Integer;
+		"InTableName" : String(256);
+		"InTabCountTS" : UTCTimestamp;
+		"InTabCount" : Integer;
+		"OutTableName" : String(256);
+		"OutTabCountTS" : UTCTimestamp;
+		"OutTabCount"  : Integer;
+		"RCTTableName" : String(256);
+		"RCTTableCountTS"  : UTCTimestamp;
+		"RCTTableCount"  : Integer;
+		"RCTArchName" : String(256);
+		"RCTArchCountTS" : UTCTimestamp;
+		"RCTArchCount"  : Integer;
+		"Steps" : String(20);
+		"StartedTS"  : UTCTimestamp;
+		"ModifiedTS"  : UTCTimestamp;
+		"EndedTS"  : UTCTimestamp;
+		"RuntimeSec" : Integer;
+		"processingStatus" : String(10);
+	}
+	
+	table type BW_STATUS {
+	
+		"4ZBI_CP10_COMPID" : String(120);
+		"4ZBI_CP10_ZDTAAREA" : String(20);
+		"4ZBI_CP10_LATEST_DT" : String(8);
+		"4ZBI_CP10_LATEST_TM" : String(6);
+		"4ZBI_CP10_BIC_ZPCENDDT" : String(8);
+		"4ZBI_CP10_BIC_ZPCENDTM" : String(6);
+		"4ZBI_CP10_BIC_ZPCNXTDT" : String(8);
+		"4ZBI_CP10_BIC_ZPCNXTTM" : String(6);
+		"4ZBI_CP10_BIC_ZPCSTDT" : String(8);
+		"4ZBI_CP10_BIC_ZPCSTTM": String(6);	 
+		"4ZBI_CP10_TCTPRCSCHN": String(25);
+	}
+	
+};

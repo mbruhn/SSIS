@@ -1,0 +1,19 @@
+{
+	"REMOTE_CURX":{ 
+		"target": {
+			 "object": "v_BW_Curx_I_RCT_P_RCT2_OD_NEW"
+		 }
+	},
+	"RCT_ARCHIVE_CURX":{ 
+		"target": {
+			 "object": "RCT_Curx_ARCH"
+		 }
+	},	 
+	"RCT_RAW_CURX":{ 
+		"target": {
+			 "object": "RCT_Curx_RAW"
+		 }
+	}	
+	
+	
+}

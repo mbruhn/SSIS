@@ -1,0 +1,9 @@
+== version = 1 
+COLUMN table TAB_TEST
+(
+	"ROW" integer,
+	"STRING" 				NVARCHAR(5000)
+	 
+
+) PAGE LOADABLE
+

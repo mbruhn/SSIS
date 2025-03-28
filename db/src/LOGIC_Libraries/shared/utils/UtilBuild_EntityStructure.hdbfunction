@@ -1,0 +1,238 @@
+/*
+  select * from "UtilBuild_TableStructure"( common_name => 'Active_Assortment_DC');
+ this will produce 4 elemnts
+  Synonym
+  Entity or migration table definintion
+  load procedure for load routines lib
+  call statement for the loadData procedure 
+
+ if for some reason you need to redo or create for more than one table you
+ can daisy chain the execution - eg like this where we need the 
+ procedures to be "re-aligned"
+ 
+	do begin 
+		t1 = 
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Praesentation_ROS_data_tabel') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Shipping_info_SLT') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Substitution_List_praesentation_tabel') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Substitution_List_to_FC_table') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Time') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Vendor_devided_between_PG_Tabel') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Akk_FC') where keyvalue = 'Lib Proc' union all
+			select structuredef from "UtilBuild_TableStructure"( common_name => 'Estimated_safety_limit_tabel') where keyvalue = 'Lib Proc';
+		select 	cast(STRING_AGG( structuredef || CHAR(10) )  as NCLOB) as procedure from :t1;
+	end
+	
+	
+	select * from "UtilBuild_EntityStructure"( sourcename => 'I_RCT_P_RCT2_OD_NEW', shorthand => 'Curx'	)
+
+*/
+FUNCTION "UtilBuild_EntityStructure"( 
+	in  output nvarchar(20) default 'ENTITYmm',
+	in  sourcename nvarchar(256) default 'I_RCT_P_RCT2_OD_NEW',
+	in  shorthand nvarchar(256) default 'Curx'
+	-- sourcename I_RCT_P_RCT2_OD_NEW
+-- shortHand  CURX
+	
+	)
+       RETURNS table (keyvalue nvarchar(20), structuredef nclob)
+       LANGUAGE SQLSCRIPT 
+       SQL SECURITY INVOKER
+AS 
+
+	src_schema nvarchar(256)    := current_schema;
+	src_table  nvarchar(256)    := 'v_BW_' || :shorthand || '_' || :sourcename;
+	
+	raw_synonym nvarchar(256)   := 'RCT_RAW_' || upper(:shorthand);
+	arch_synonym nvarchar(256)  := 'RCT_ARCH_' || upper(:shorthand);
+	SRC_SYNONYM nvarchar(256)   := 'REMOTE_' || upper(:shorthand);
+	
+	
+	in_tablename nvarchar(256)  := 'IN_' || upper(:shorthand);
+	out_tablename nvarchar(256) := 'OUT_' || upper(:shorthand);
+	
+	RCTTableName nvarchar(256)  := 'RCT_' || :shorthand || '_RAW';
+	RCTArchName nvarchar(256)   := 'RCT_' || :shorthand || '_ARCH';
+	 
+ 
+	
+	
+	tgt_table nvarchar(256) := :in_tablename;
+	
+    lStructure nclob;
+	procedure_signature nclob;
+	procedure_body nclob;
+	
+	lv1tab nvarchar(2) := CHAR(9) || CHAR(9);
+	lv2tab nvarchar(3) := CHAR(9) || CHAR(9)|| CHAR(9);
+	lv3tab nvarchar(4) := CHAR(9) || CHAR(9)|| CHAR(9) || CHAR(9);
+	lv4tab nvarchar(5) := CHAR(9) || CHAR(9)|| CHAR(9) || CHAR(9) || CHAR(9);
+
+BEGIN 
+-- pickup defination based on source table definition
+	columnlist = select STRING_AGG(:lv4tab || '"' || column_name || '"', ',' || CHAR(10)) as names from LOCAL_COLUMNS where schema_name = :src_schema and table_name = :src_table;
+	
+	columnlistraw = select STRING_AGG(:lv4tab || '"' || column_name || '"', ',' || CHAR(10)) as names from LOCAL_COLUMNS where schema_name = :src_schema and table_name = :RCTTableName;
+ 
+	
+
+	if upper(output) = 'ENTITY' then
+		-- If we want a cds type entity
+		hdbtypes = select column_name, data_type_name, length, scale,
+		  case  
+		    when data_type_name = 'DATE'       then '"' || column_name || '"' || ' : LocalDate'
+		    when data_type_name = 'NVARCHAR'   then '"' || column_name || '"'  || ' : String(' || length || ')'
+		    when data_type_name = 'VARCHAR'    then '"' || column_name || '"'  || ' : String(' || length || ')'
+		    when data_type_name = 'DOUBLE'     then '"' || column_name || '"'  || ' : BinaryFloat'
+		    when data_type_name = 'TIMESTAMP'  then '"' || column_name || '"'  || ' : UTCTimestamp'
+		    when data_type_name = 'BIGINT'     then '"' || column_name || '"'  || ' : Integer64'
+		    when data_type_name = 'INTEGER'    then '"' || column_name || '"'  || ' : Integer'
+		    
+		    when data_type_name = 'DECIMAL'  and scale is not null   then '"' || column_name || '"'  || ' : Decimal(' || length || ',' || scale || ')'
+		    when data_type_name = 'DECIMAL'  and scale is null   then '"' || column_name || '"'  || ' : Decimal(' || length || ')'		    
+		    
+		    when data_type_name = 'NCLOB'      then '"' || column_name || '"'  || ' : LargeString'
+		    when data_type_name = 'SECONDDATE' then '"' || column_name || '"'  || ' : UTCDateTime'
+		    else '"' || column_name || '"'  || ' : Not Defined ' || data_type_name
+		  end as cdsdatatype
+		from LOCAL_COLUMNS  where schema_name = :src_schema and table_name = :src_table;
+	
+		-- Setup entity model for hdbcds
+		t0 = select 'Structure' as keyvalue ,cast('entity ' || tgt_table || ' {' || CHAR(10) || STRING_AGG(cdsdatatype, ';' || CHAR(10) ) || '};'  as NCLOB) as structuredef from :hdbtypes;
+	
+	else 
+		-- If we want a migration table statement
+		hdbmigrtypes = select column_name, data_type_name, length, scale, 
+			  case  
+			    when data_type_name = 'DATE'       then '"' || column_name || '"'  || ' DATE'
+			    when data_type_name = 'NVARCHAR'   then '"' || column_name || '"'  || ' NVARCHAR(' || length || ')'
+			    when data_type_name = 'VARCHAR'    then '"' || column_name || '"'  || ' VARCHAR(' || length || ')'
+			    when data_type_name = 'DOUBLE'     then '"' || column_name || '"'  || ' DOUBLE'
+			    when data_type_name = 'TIMESTAMP'  then '"' || column_name || '"'  || ' TIMESTAMP'
+			    when data_type_name = 'BIGINT'     then '"' || column_name || '"'  || ' BIGINT'
+			    when data_type_name = 'INTEGER'    then '"' || column_name || '"'  || ' INTEGER'
+			   when data_type_name = 'DECIMAL'  and scale is not null  then '"' || column_name || '"'  || ' DECIMAL(' || length || ',' || scale || ')'
+			    when data_type_name = 'DECIMAL'  and scale is null  then '"' || column_name || '"'  || ' DECIMAL(' || length || ')'		
+			    when data_type_name = 'NCLOB'      then '"' || column_name || '"'  || ' NCLOB'
+			    when data_type_name = 'SECONDDATE' then '"' || column_name || '"'  || ' SECONDDATE'
+			    when data_type_name = 'REAL'       then '"' || column_name || '"'  || ' REAL'
+			    else '"' || column_name || '"'  || ' : Not Defined ' || data_type_name
+			  end as cdsdatatype
+			from LOCAL_COLUMNS  where schema_name = :src_schema and table_name = :src_table;
+			
+			t0 = SELECT 
+				'Structure' as keyvalue,
+				cast('== version = 1 ' || CHAR(10) || 'COLUMN table ' || upper(:in_tablename) || CHAR(10) || '(' || CHAR(10)
+				|| STRING_AGG(CHAR(9) || cdsdatatype, ',' || CHAR(10) ) || CHAR(10) || ') PAGE LOADABLE'  as NCLOB)  as structuredef 
+				from :hdbmigrtypes;
+			t0_out = SELECT 
+				'Structure' as keyvalue,
+				cast('== version = 1 ' || CHAR(10) || 'COLUMN table ' || upper(:out_tablename) || CHAR(10) || '(' || CHAR(10)
+				|| STRING_AGG(CHAR(9) || cdsdatatype, ',' || CHAR(10) ) || CHAR(10) || ') PAGE LOADABLE'  as NCLOB)  as structuredef 
+				from :hdbmigrtypes;
+				
+				
+				
+				
+			RCTTableDef = select column_name, data_type_name, length, scale, 
+			  case  
+			    when data_type_name = 'DATE'       then '"' || column_name || '"'  || ' DATE'
+			    when data_type_name = 'NVARCHAR'   then '"' || column_name || '"'  || ' NVARCHAR(' || length || ')'
+			    when data_type_name = 'VARCHAR'    then '"' || column_name || '"'  || ' VARCHAR(' || length || ')'
+			    when data_type_name = 'DOUBLE'     then '"' || column_name || '"'  || ' DOUBLE'
+			    when data_type_name = 'TIMESTAMP'  then '"' || column_name || '"'  || ' TIMESTAMP'
+			    when data_type_name = 'BIGINT'     then '"' || column_name || '"'  || ' BIGINT'
+			    when data_type_name = 'INTEGER'    then '"' || column_name || '"'  || ' INTEGER'
+			   when data_type_name = 'DECIMAL'  and scale is not null  then '"' || column_name || '"'  || ' DECIMAL(' || length || ',' || scale || ')'
+			    when data_type_name = 'DECIMAL'  and scale is null  then '"' || column_name || '"'  || ' DECIMAL(' || length || ')'		
+			    when data_type_name = 'NCLOB'      then '"' || column_name || '"'  || ' NCLOB'
+			    when data_type_name = 'SECONDDATE' then '"' || column_name || '"'  || ' SECONDDATE'
+			    when data_type_name = 'REAL'       then '"' || column_name || '"'  || ' REAL'
+			    else '"' || column_name || '"'  || ' : Not Defined ' || data_type_name
+			  end as cdsdatatype
+			from LOCAL_COLUMNS  where schema_name = :src_schema and table_name = :RCTTableName;
+			
+			RCTTableDef_t0 = SELECT 
+				'Structure' as keyvalue,
+				cast('== version = 1 ' || CHAR(10) || 'COLUMN table ' || upper(:in_tablename) || CHAR(10) || '(' || CHAR(10)
+				|| STRING_AGG(CHAR(9) || cdsdatatype, ',' || CHAR(10) ) || CHAR(10) || ') PAGE LOADABLE'  as NCLOB)  as structuredef 
+				from :RCTTableDef;
+
+				
+	end if;
+
+	
+	/*T1 will contain the procedure for the library. */
+	t1 = select 'Logic' as keyvalue ,cast('INSERT INTO "' || upper(:tgt_table) || '" (' || CHAR(10) || names || ')' || CHAR(10) || :lv3tab || 
+'SELECT ' || CHAR(10) || names || CHAR(10) || :lv3tab || 'FROM "' || :src_synonym || '";' as NCLOB) as structuredef from :columnlist;
+
+
+
+	t1_rctnew = select 'rctnew' as keyvalue ,cast('INSERT INTO "' || upper(:raw_synonym) || '" (' || CHAR(10) || names || ')' || CHAR(10) || :lv3tab || 
+'SELECT ' || CHAR(10) || names || CHAR(10) || :lv3tab || 'FROM "' || :out_tablename || '";' as NCLOB) as structuredef from :columnlistraw;
+ 
+ 	t1_rctarch = select 'rctarch' as keyvalue ,cast('INSERT INTO "' || upper(:arch_synonym) || '" (' || CHAR(10) || names || ')' || CHAR(10) || :lv3tab || 
+'SELECT ' || CHAR(10) || names || CHAR(10) || :lv3tab || 'FROM "' || :out_tablename || '";' as NCLOB) as structuredef from :columnlistraw;
+
+    select top 1 structuredef into lStructure from :t1;
+	select top 1 structuredef from :t1;
+	
+	procedure_signature :=  CHAR(10) ||  CHAR(10) || :lv1tab || 'PUBLIC PROCEDURE "' || 'LOAD_' || upper(:shorthand) || '_FROM_BW" (';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv2tab || 'IN delDate DATE, ';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv2tab || 'IN loadDate DATE, ';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv2tab || 'IN delOnly BOOLEAN,';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv2tab || 'IN tableName NVARCHAR(127),';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv2tab || 'OUT oLogs TABLE (line NCLOB)' || CHAR(10) || :lv1tab || ')';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv1tab || 'LANGUAGE SQLSCRIPT SQL SECURITY DEFINER' || CHAR(10) || :lv1tab || 'AS';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv2tab || 'tEntries INTEGER;';
+	procedure_signature := :procedure_signature || CHAR(10) || :lv1tab || 'BEGIN';
+	
+ 
+	
+	procedure_body :=  CHAR(10) || :lv2tab || ':oLogs.insert((current_timestamp || '' : Deleting from ''  || :tablename || '' using BusinessDate = '' || :delDate));';
+	procedure_body := :procedure_body || CHAR(10) || :lv2tab || 'SELECT count(*) INTO tEntries FROM ' ||  :tgt_table || ' WHERE "BusinessDate" = :delDate;';
+	procedure_body := :procedure_body || CHAR(10) || :lv2tab || ':oLogs.insert((current_timestamp || '' : Deleting ''  || :tEntries || '' entries, from = '' || :tablename));';
+	procedure_body := :procedure_body || CHAR(10) || :lv2tab || 'DELETE FROM ' || :tgt_table || ' WHERE "BusinessDate" = :delDate;';
+	procedure_body := :procedure_body || CHAR(10);
+	procedure_body := :procedure_body || CHAR(10) || :lv2tab || 'IF :delOnly = false THEN -- actually load data ';
+	procedure_body := :procedure_body || CHAR(10);
+	
+
+	
+	procedure_body := :procedure_body || CHAR(10) || :lv3tab ||  :lStructure;
+	procedure_body := :procedure_body || CHAR(10);
+	procedure_body := :procedure_body || CHAR(10) || :lv3tab || ':oLogs.insert((current_timestamp || '' : Inserting data into '' || :tableName || '' using BusinessDate = '' || :loadDate));';
+	procedure_body := :procedure_body || CHAR(10) || :lv3tab || 'SELECT count(*) INTO tEntries FROM ' ||  :tgt_table || ' WHERE "BusinessDate" = :delDate;';
+	procedure_body := :procedure_body || CHAR(10) || :lv3tab || ':oLogs.insert((current_timestamp || '' : Inserted '' || :tEntries || '' entries, into '' || :tablename));';
+	procedure_body := :procedure_body || CHAR(10);
+	
+	procedure_body := :procedure_body || CHAR(10) || :lv2tab || 'END IF;';
+	procedure_body := :procedure_body || CHAR(10) || :lv1tab || 'END;';
+	
+	
+	t3 = select  'Lib Proc' as keyvalue , cast(:procedure_signature || :procedure_body as nclob) as structuredef from dummy;
+	
+	
+
+ 
+	/*JSON for the synonyms */
+/*	t2 = select 'Synonym' as keyvalue ,
+      cast(',' || CHAR(10) || CHAR(9) ||'"' || :src_synonym || '":{ ' || CHAR(10) || CHAR(9)  || CHAR(9)  || '"target": {' || CHAR(10)  || :lv13ab || ' "object": "' || :src_table || '"' || CHAR(10)   || CHAR(9) || CHAR(9) || ' }' || CHAR(10) || CHAR(9)  || '}' as NCLOB) as structuredef from dummy;
+*/
+	t2 = select 'Synonym' as keyvalue ,
+	    cast(',' || CHAR(10) || CHAR(9) ||'"' || :src_synonym || '":{ ' || 
+		CHAR(10) || :lv1tab  || '"target": {' || 
+		CHAR(10)  || :lv2tab || ' "object": "' || :src_table || '"' || 
+		CHAR(10)   || :lv1tab  || ' }' || 
+		CHAR(10) || CHAR(9)  || '}' as NCLOB) as structuredef from dummy;
+
+ 
+   	t4 = select  
+   		'Call Stmt' as keyvalue ,
+   		'call ingest:"' ||upper(:sourcename) ||  '"(delete_date, load_date, deleteOnly, ''' || :sourcename || ''', :l_Logs); :logs.INSERT(:l_Logs);' as structuredef from dummy;
+ 
+ 
+ 
+	return select * from :t2 union all select * from :t0 union all select * from :t0_out union all select * from :t3 union all select * from :t4 union all select * from :t1_rctnew union all select * from :t1_rctarch;
+    
+END;

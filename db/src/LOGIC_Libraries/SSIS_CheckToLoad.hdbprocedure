@@ -1,0 +1,210 @@
+PROCEDURE "SSIS_CheckToLoad"
+/*
+PROCEDURE:		SSIS_CheckToLoad
+-------------------------------------------------------------------
+Author: 	CONS_MBRU	Michael Bruhn
+Created: 	JANUARY-2025
+
+DESCRIPTION:
+	Reads the BWDATA control table and checks if 
+	there are things to load.
+	
+	note the concept of in/out table should be applied here 
+
+
+CHANGE HISTORY:
+   January 2025 - Bruhn
+     Original version of the PROCEDURE
+
+-------------------------------------------------------------------
+*/
+( )
+   LANGUAGE SQLSCRIPT
+   SQL SECURITY DEFINER
+
+AS
+
+	-- amend this and set timeslot on when this can actually run
+	clearedToRun boolean := case when current_time between '12:00:00' and '17:30:00' then true else false end;
+
+
+
+	running_jobs			integer;
+	active_lake_date		date;
+	rct_date    			date; 
+	
+	lake_timestamp			timestamp; 
+	rct_timestamp   		timestamp; 
+	
+	recCount_LakeControl	integer;
+	recCount_RctControl 	integer;
+
+
+
+	ilog	table	(line nclob);
+	tlog	table	(line nclob);
+	load_logs	table	(line nclob);
+	
+	Load_timestamp   		timestamp := current_timestamp;
+	lUID					varbinary(16)	:= NEWUID();
+	ldataloadID 			nvarchar(256);
+	ldataReadyTS			timestamp; 
+
+    lloadlist table (
+    	dataloadID			nvarchar(256), 
+    	dataReadyTS 		timestamp );
+	
+	cJobid nvarchar(127) := 'SSIS_LOAD';
+	i integer;
+	
+	JSONTAB TABLE (STREAMDATA Nvarchar(100000));
+	logJsonArray nclob := '';
+	mailJsonStream nclob := '';
+	
+	oloadstatus "core.DL_LOAD_STATUS";
+	statusArray  boolean array;
+	itloadstatus "core.DL_LOAD_STATUS";
+	itReceivers table ( "email" nvarchar(256),	"name"  nvarchar(512));
+    jsonReceivers nclob := '';
+    
+BEGIN	Using "mail" as mail;
+		using "overWatch" as ow;
+		using "LoadUnit_I_RCT_P_RCT2_OD_NEW" as RCT2; 
+		using "LoadUnit_I_RCT_AIS_P_RCT6"    as RCT6; 
+		using "LoadUnit_I_RCT_AIS_P_RCT7U"   as RCT7U;
+		using "LoadUnit_I_RCT_AIS_P_RCT70"   as RCT70;
+	
+    :jsontab.delete();
+    
+    -- setup email receivers here ..
+    :itReceivers.insert(('dlmail@jysk.com','Datalake'));
+	:itReceivers.insert(('DPL_RCT@jysk.com','RCT'));
+	:itReceivers.insert(('mib@effectuate.dk','Michael Bruhn'));
+  
+ 
+    :iLog.insert((current_timestamp || ' : SSIS_CheckToLoad() Starting'));
+ 
+	-- are we cleared to run see and set in line #28
+	if :clearedToRun = false then 
+	-- cannot run	
+	    :iLog.insert((current_timestamp || ' : Outside timeframe not running'));		
+	else
+	-- within timeframe ok to run	
+		:iLog.insert((current_timestamp || ' : Inside timeframe continues'));	
+		
+		-- is another job running already
+		select count(*) into running_jobs from JOB_CONTROL_TABLE where jobid = :cJobID and status = 'RUNNING';
+	    
+	    if :running_jobs = 0 then
+	
+			UPSERT JOB_CONTROL_TABLE (jobid, status) values (:cJobID, 'RUNNING');
+		   
+		    -- count from control tables 
+		    :iLog.insert((current_timestamp || ' : No other jobs are running -> Continuing'));
+	        
+	        /*Detect changes and setup queue*/
+	        lloadlist = select dataloadID, dataReadyTS from loadchecker();
+	         
+	        -- alert_via_mail(*);
+	        
+	    	if RECORD_COUNT(:lloadlist) > 0 then  -- something to sync
+	    		:iLog.insert((current_timestamp || ' : Something is available in BW - starting sync'));
+	          
+	      -- Converting to a while ....     
+				FOR i IN 1..RECORD_COUNT(:lloadlist) DO
+					ldataloadID  = :lloadlist.dataloadid[:i];
+					ldataReadyTS = :lloadlist.datareadyTS[:i]; 
+					:tlog.delete();
+				
+				   
+					/*ACTUAL CALL - EMBED THIS HERE */
+					if ldataloadID = 'I_RCT_P_RCT2_OD_NEW' then
+						call rct2:"LoadController"(dataLoadId =>:ldataloadID,  dataReadyTS => :ldataReadyTS, oLogs => :tlog);
+						:ilog.insert(:tlog);
+						
+					elseif ldataloadID = 'I_RCT_AIS_P_RCT6' then 
+						call rct6:"LoadController"(dataLoadId =>:ldataloadID,  dataReadyTS => :ldataReadyTS, oLogs => :tlog);
+						:ilog.insert(:tlog);	
+						
+					elseif ldataloadID = 'I_RCT_P_RCT7UK_OD_NEW' then 
+						call rct7u:"LoadController"(dataLoadId =>:ldataloadID,  dataReadyTS => :ldataReadyTS, oLogs => :tlog);
+						:ilog.insert(:tlog);			
+						
+				    elseif ldataloadID = 'I_RCT_P_RCT70_OD_NEW' then
+						call rct70:"LoadController"(dataLoadId =>:ldataloadID,  dataReadyTS => :ldataReadyTS, oLogs => :tlog);
+						:ilog.insert(:tlog);			
+					-- More
+					end if;
+					
+					
+					
+					/*Keeping a format, copy of the logs for later output in mail*/
+					call ow:"getLoadStatus"(
+						idataLoadId 	=> :ldataloadID, 
+						idataReadyTS	=> :ldataReadyTS, 
+						odl_load_status => :oloadStatus,
+						ostatusArray	=> :statusArray);
+				        
+					-- Add elements from the log to email stream, and insert into log structure
+					:itLoadStatus.insert(:oloadstatus);
+				END FOR;
+				
+					
+				if RECORD_COUNT(:itLoadStatus) > 0 then
+					
+					jt0 = select * from :itLoadStatus for json;
+					select top 1 jsonresult into logJsonArray from :jt0;
+				   
+					 mailjsonstream := '{' ||
+						'"timestamp" : "'  || current_timestamp || '",'
+						'"uid" : "'  || :lUid || '",'				   
+						'"container" : {"ID" : "ZBUF_RCT_SSIS", "schema": "' || current_schema || '"}, ' ||
+						' "statuslogs" : ' || :logJsonArray || 
+						'}';
+					
+	
+					if IS_EMPTY(:itReceivers) then 
+						:itReceivers.insert(('dlmail@jysk.com','Datalake'));
+					end if;
+	
+					select jsonresult into jsonReceivers from (select * from :itReceivers for json);
+	
+					call "addMail"(
+						subjectText   	=> 'SSIS Load completed, Status',
+						streamText  	=> :mailJsonStream,
+						receiverJson   => :jsonReceivers,
+					    TEMPLATENAME	=> 'SSIS_LOAD_COMPLETED'
+					);
+	
+	
+					/*CALL "addSimpleMail"(
+						SUBJECTTEXT 	=> 'SSIS Load completed, Status',
+						STREAMTEXT		=> :mailJsonStream,
+						RECEIVEREMAIL	=> 'cons_mbru@jysk.com', 
+						RECEIVERNAME	=> 'Michael Bruhn',      
+						TEMPLATENAME	=> 'SSIS_LOAD_COMPLETED'
+					);*/
+	
+				else
+				-- Not sure how to handle
+				end if;
+	   
+			else -- nothing  to sync
+	 			 :iLog.insert(( current_timestamp || ' : Nothing to sync - exit'));
+			end if;
+			
+			-- Done set job status to completed
+			UPSERT JOB_CONTROL_TABLE (jobid, status) values (:cJobID, 'COMPLETED');
+		else 
+			-- something is already running
+			 :iLog.insert(( current_timestamp || ' : Another job is running - standing down!'));
+		end if;
+		
+	
+	end if; -- Within timeframe for execution
+
+	:iLog.insert((current_timestamp || ' : SSIS_CheckToLoad() Stopping'));
+
+	insert into LOAD_LOGS ("UUID", "LOADTIMESTAMP", "ROW", "LINE" ) select :lUID,  :load_timestamp, row_number() over () ,line  from :iLog;
+		
+END

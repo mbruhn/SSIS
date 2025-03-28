@@ -1,0 +1,435 @@
+LIBRARY "LoadUnit_I_RCT_AIS_P_RCT6"
+	LANGUAGE SQLSCRIPT AS
+
+	BEGIN
+
+		private variable cDataLoadIDShort constant nvarchar(10) := 'RCT6';
+		private variable cDataloadId constant nvarchar(256) := 'I_RCT_AIS_P_RCT6';
+		private variable cInTableName constant nvarchar(256) := 'IN_RCT6_TABLE';
+		private variable cOutTableName constant nvarchar(256) := 'OUT_RCT6_TABLE';
+		private variable cRctArchiveTableName constant nvarchar(256) := 'DataLake_BW_Archive_RCT6';	-- todo change to real table
+		private variable cRctRawTableName constant nvarchar(256) := 'DataLake_BW_Input_RCT6';	-- todo change to real table
+
+
+		PRIVATE PROCEDURE "LoadDataToInTable"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			recCountSource integer;
+			recCountInTable integer;
+
+			load_status "core.DL_LOAD_STATUS";
+			
+			
+			Extract_FromDate nvarchar(8) :=   replace(add_days(current_date, -45),'-','') ;	
+			Extract_ToDate nvarchar(8) :=   replace(add_days(current_date, -360),'-','') ;		
+			
+		BEGIN using "overWatch" as ow;
+			 
+			SELECT count(*) INTO recCountSource FROM TF_SOURCE_BW_I_RCT_AIS_P_RCT6; -- TODO Adjust duration
+
+			:oLogs.insert((current_timestamp || ' : Source Records in BW - ' || :recCountSource ));
+			:oLogs.insert((current_timestamp || ' : inserting started ' ));
+
+			CALL "I_RCT_AIS_P_RCT6_SRC2IN_SP"();
+	    
+			commit work;
+			:oLogs.insert((current_timestamp || ' : inserting stopped ' ));
+
+			SELECT count(*) INTO recCountInTable FROM IN_RCT6_TABLE;
+			:oLogs.insert((current_timestamp || ' : Records in InTable - ' || :recCountInTable ));
+
+
+            :oLogs.insert((current_timestamp || ' : Transferred'));
+
+            /*Update Logs*/
+           	:load_Status.insert(:idl_load_status);
+
+           	iostatusArray[1] := true;
+		   	load_status."BWDataCountTS"[1] :=  current_timestamp;
+			load_status."BWDataCount"[1]   :=  :recCountSource;
+
+			load_status."InTableName"[1] := :cInTableName;
+			load_status."InTabCountTS"[1] := current_timestamp;
+			load_status."InTabCount"[1]  := :recCountInTable;
+
+
+           	call ow:"updateLoadStatus"(
+				idataLoadId => :idataLoadId, idataReadyTS => :idataReadyTS,
+				idl_load_status => :load_status, istatusArray => :iostatusArray);
+
+			-- update outgoing status
+			:odl_load_status.delete();
+			:odl_load_status.insert(:load_status);
+
+			END;
+
+
+
+		PRIVATE PROCEDURE "TruncateRctArch"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			load_status "core.DL_LOAD_STATUS";
+
+		BEGIN	using "overWatch" as ow;
+				USING SQLSCRIPT_SYNC AS SYNCLIB;
+
+		    -- delete from DataLake_BW_Archive_RCT6 where 1 = 1;
+		    -- Remote truncate
+		    call ow:"truncateRCTtable"(:cRctArchiveTableName, 7);
+		    
+
+
+
+		    /*Update Logs*/
+           	:load_Status.insert(:idl_load_status);
+           	iostatusArray[2] := true;
+
+
+           	call ow:"updateLoadStatus"(
+				idataLoadId => :idataLoadId, idataReadyTS => :idataReadyTS,
+				idl_load_status => :load_status, istatusArray => :iostatusArray);
+
+			-- update outgoing status
+			:odl_load_status.delete();
+			:odl_load_status.insert(:load_status);
+
+
+            :oLogs.insert((current_timestamp || ' : Transferred'));
+		END;
+
+
+
+		PRIVATE PROCEDURE "LoadDataToRctArch"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			reccountOut integer;
+			reccountarch integer;
+			load_status "core.DL_LOAD_STATUS";
+
+		BEGIN using "overWatch" as ow;
+		  -- insert fields from source to intable
+
+			SELECT count(*) INTO recCountOut FROM OUT_RCT6_TABLE;
+				:oLogs.insert((current_timestamp || ' : Source Records in OutTable- ' || :recCountOut ));
+				:oLogs.insert((current_timestamp || ' : inserting started ' ));
+
+				CALL "I_RCT_AIS_P_RCT6_OUT2ARCH_SP"();
+				commit work;
+
+				:oLogs.insert((current_timestamp || ' : inserting stopped ' ));
+
+				SELECT count(*) INTO recCountArch FROM DataLake_BW_Archive_RCT6;
+				:oLogs.insert((current_timestamp || ' : Records in Arch Table - ' || :recCountArch ));
+
+		   /*Update Logs*/
+           	:load_Status.insert(:idl_load_status);
+
+           	iostatusArray[3] := true;
+			load_status."RCTArchName"[1] := :cRctArchiveTableName;
+			load_status."RCTArchCountTS"[1] := current_timestamp;
+			load_status."RCTArchCount"[1]  := :recCountArch;
+
+
+           	call ow:"updateLoadStatus"(
+				idataLoadId => :idataLoadId, idataReadyTS => :idataReadyTS,
+				idl_load_status => :load_status, istatusArray => :iostatusArray);
+
+			-- update outgoing status
+			:odl_load_status.delete();
+			:odl_load_status.insert(:load_status);
+
+
+            :oLogs.insert((current_timestamp || ' : Transferred'));
+
+		END;
+
+
+
+		PRIVATE PROCEDURE "TruncateOutTable"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			recCount integer;
+			load_status "core.DL_LOAD_STATUS";
+
+		BEGIN using "overWatch" as ow;
+		  -- insert fields from source to intable
+
+			:oLogs.insert((current_timestamp || ' : Truncating Out Table ' ));
+			SELECT count(*) INTO recCount FROM OUT_RCT6_TABLE;
+			:oLogs.insert((current_timestamp || ' : Truncating - number of records - ' || :recCount ));
+
+			TRUNCATE TABLE OUT_RCT6_TABLE;
+			commit work;
+
+			/*Update Logs*/
+           	:load_Status.insert(:idl_load_status);
+           	iostatusArray[4] := true;
+
+
+           	call ow:"updateLoadStatus"(
+				idataLoadId => :idataLoadId, idataReadyTS => :idataReadyTS,
+				idl_load_status => :load_status, istatusArray => :iostatusArray);
+
+			-- update outgoing status
+			:odl_load_status.delete();
+			:odl_load_status.insert(:load_status);
+
+			:oLogs.insert((current_timestamp || ' : Out Table truncated' ));
+
+		END;
+
+
+
+		PRIVATE PROCEDURE "TruncateInTable"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			recCount integer;
+			load_status "core.DL_LOAD_STATUS";
+		BEGIN using "overWatch" as ow;
+		  -- insert fields from source to intable
+
+			:oLogs.insert((current_timestamp || ' : Truncating In Table ' ));
+			SELECT count(*) INTO recCount FROM IN_RCT6_TABLE;
+			:oLogs.insert((current_timestamp || ' : Truncating - number of records - ' || :recCount ));
+
+			TRUNCATE TABLE IN_RCT6_TABLE;
+			commit work;
+
+			:oLogs.insert((current_timestamp || ' : In Table truncated' ));
+
+    		:odl_load_status.insert(:idl_load_status);
+
+		END;
+
+
+
+		PRIVATE PROCEDURE "LoadDataToOutTable"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			recCountInTable integer;
+			recCountoutTable integer;
+			load_status "core.DL_LOAD_STATUS";
+		BEGIN using "overWatch" as ow;
+		  -- insert fields from source to intable
+
+				SELECT count(*) INTO recCountInTable  FROM IN_RCT6_TABLE;
+				:oLogs.insert((current_timestamp || ' : Source Records from InTable - ' || :recCountInTable ));
+				:oLogs.insert((current_timestamp || ' : inserting started ' ));
+
+	-- Call inout flowgraph 
+				CALL "I_RCT_AIS_P_RCT6_IN2OUT_SP"();
+				commit work;
+
+				:oLogs.insert((current_timestamp || ' : inserting stopped ' ));
+				SELECT count(*) INTO recCountOutTable FROM OUT_RCT6_TABLE;
+				:oLogs.insert((current_timestamp || ' : Records in OutTable - ' || :recCountOutTable ));
+
+
+		    /*Update Logs*/
+           	:load_Status.insert(:idl_load_status);
+
+           	iostatusArray[5] := true;
+			load_status."OutTableName"[1] := :cOutTableName;
+			load_status."OutTabCountTS"[1] := current_timestamp;
+			load_status."OutTabCount"[1]  := :recCountOutTable;
+
+           	call ow:"updateLoadStatus"(
+				idataLoadId => :idataLoadId, idataReadyTS => :idataReadyTS,
+				idl_load_status => :load_status, istatusArray => :iostatusArray);
+
+			-- update outgoing status
+			:odl_load_status.delete();
+			:odl_load_status.insert(:load_status);
+
+            :oLogs.insert((current_timestamp || ' : Transferred'));
+		END;
+
+
+		PRIVATE PROCEDURE "LoadDataToRctRaw"(
+			IN    idataLoadId     nvarchar(256),
+			IN    idataReadyTS    timestamp,
+			IN    idl_load_status "core.DL_LOAD_STATUS",
+			OUT   odl_load_status "core.DL_LOAD_STATUS",
+			OUT   oLogs           TABLE (line NCLOB),
+			INOUT iostatusArray   boolean array
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			recCountOut integer;
+			recCountNew integer;
+			load_status "core.DL_LOAD_STATUS";
+
+		BEGIN	using "overWatch" as ow;
+
+
+	    	-- Remove existing entries
+			--	delete from DataLake_BW_Input_RCT6 where 1 = 1;
+		    -- Remote truncate
+		    call ow:"truncateRCTtable"(:cRctRawTableName, 7);
+				commit work;		
+
+		
+
+				SELECT count(*) INTO recCountOut FROM OUT_RCT6_TABLE;
+				:oLogs.insert((current_timestamp || ' : Source Records in OutTable- ' || :recCountOut ));
+				:oLogs.insert((current_timestamp || ' : inserting started ' ));
+				:oLogs.insert((current_timestamp || ' : invoking flow I_RCT_AIS_P_RCT6_Final_SP' ));
+
+				CALL "I_RCT_AIS_P_RCT6_OUT2INPUT_SP"();
+				commit work;
+				
+				:oLogs.insert((current_timestamp || ' : inserting stopped ' ));
+
+				SELECT count(*) INTO recCountNew FROM DataLake_BW_Input_RCT6;
+				:oLogs.insert((current_timestamp || ' : Records in New Table - ' || :recCountNew ));
+
+		   /*Update Logs*/
+           	:load_Status.insert(:idl_load_status);
+
+           	iostatusArray[6] := true;
+			load_status."RCTTableName"[1] := :cRctRawTableName;
+			load_status."RCTTableCountTS"[1] := current_timestamp;
+			load_status."RCTTableCount"[1]  := :recCountNew;
+
+           	call ow:"updateLoadStatus"(
+				idataLoadId => :idataLoadId, idataReadyTS => :idataReadyTS,
+				idl_load_status => :load_status, istatusArray => :iostatusArray);
+
+			-- update outgoing status
+			:odl_load_status.delete();
+			:odl_load_status.insert(:load_status);
+
+
+            :oLogs.insert((current_timestamp || ' : Transferred'));
+		END;
+
+
+		PUBLIC PROCEDURE "LoadController"(
+			IN dataLoadId  nvarchar(256),
+			IN dataReadyTS timestamp,
+
+			OUT oLogs TABLE (line NCLOB)
+		)
+		LANGUAGE SQLSCRIPT SQL SECURITY DEFINER
+		AS
+			iLogs TABLE (line NCLOB);
+			dl_load_status "core.DL_LOAD_STATUS";
+			statusArray boolean array;
+
+		BEGIN using "overWatch" as ow;
+
+			-- Check is this the load id we should be loading
+			:oLogs.insert((current_timestamp || ' : Starting load unit :'  || :dataloadId ));
+
+			IF dataLoadId = cDataloadId then
+
+				BEGIN SEQUENTIAL EXECUTION
+					-- get or initialize new status
+					call ow:"getLoadStatus"(
+						idataLoadId => :dataLoadId, idataReadyTS => :dataReadyTS,
+						odl_load_status => :dl_load_status, ostatusArray => :statusArray);
+
+					-- set starting point for load
+					/*Update Logs*/
+					dl_load_status."StartedTS"[1] := current_timestamp;
+
+        		  	call ow:"updateLoadStatus"(
+						idataLoadId => :dataLoadId, idataReadyTS => :dataReadyTS,
+						idl_load_status => :dl_load_status, istatusArray => :statusArray);
+
+
+					-- Step A
+					call "TruncateInTable"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+												odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray); :oLogs.insert(:ilogs);
+
+					call "LoadDataToInTable"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+												odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray); :oLogs.insert(:ilogs);
+
+					-- Step B
+					call "TruncateRctArch"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+												odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray);	 :oLogs.insert(:ilogs);
+
+					-- Step C
+					call "LoadDataToRctArch"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+												odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray);	 :oLogs.insert(:ilogs);
+
+					-- Step D
+					call "TruncateOutTable"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+											 odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray); :oLogs.insert(:ilogs);
+
+					-- Step E
+					call "LoadDataToOutTable"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+												odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray); :oLogs.insert(:ilogs);
+
+					-- Step F, this is the acive load into RCT 
+					call "LoadDataToRctRaw"( idataLoadId     => :dataLoadId,  idataReadyTS    => :dataReadyTS,  idl_load_status => :dl_load_status,
+												odl_load_status => :dl_load_status, ologs           => :ilogs,	 iostatusArray   => :statusArray); :oLogs.insert(:ilogs);
+
+
+					-- processing done updating end and runtime
+					dl_load_status."EndedTS"[1] := current_timestamp;
+					if (:dl_load_status."EndedTS"[1] is not null) and (:dl_load_status."EndedTS"[1] is not null) then
+						dl_load_status."RuntimeSec"[1] := seconds_between(:dl_load_status."StartedTS"[1], :dl_load_status."EndedTS"[1]);
+					else
+						dl_load_status."RuntimeSec"[1] := -1;
+					end if;
+
+        	call ow:"updateLoadStatus"(
+						idataLoadId => :dataLoadId, idataReadyTS => :dataReadyTS,
+						idl_load_status => :dl_load_status, istatusArray => :statusArray);
+
+					-- Step G, FlushLogs into RCT
+					call ow:"syncLoadStatus"( idataLoadId => :dataLoadId, idataReadyTS => :dataReadyTS);
+					-- Sync BW status table
+					call ow:"syncBWStatus"( idataLoadId => :dataLoadId, idataReadyTS => :dataReadyTS);
+
+
+					:oLogs.insert((current_timestamp || ' : Stopping load unit :'  || :dataloadId ));
+				END; -- Seq exec
+			END IF;
+
+		END;
+
+END;

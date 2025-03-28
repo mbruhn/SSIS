@@ -1,0 +1,35 @@
+FUNCTION "TEST_FUNCTION"(IN IPVARIABLE nvarchar(5000))
+	RETURNS table (
+		"ROW" integer,
+		"STRING" NVARCHAR(5000)	
+	)
+       LANGUAGE SQLSCRIPT 
+       SQL SECURITY INVOKER  
+AS
+ 
+  it table (line integer);
+  ifromdate nvarchar(8) := TO_VARCHAR(ADD_DAYS(CURRENT_DATE, -11),'YYYYMMDD') ;
+  itodate   nvarchar(8) := TO_VARCHAR(ADD_DAYS(CURRENT_DATE, -1),'YYYYMMDD') ;
+  lIPVARIABLE nvarchar(5000);
+BEGIN 
+
+	:it.insert((1));
+
+
+	if (:ipvariable is null) then -- or (:ipvariable = '') then 
+	-- Setdefault
+	  lipvariable := 'From: ' || :ifromdate || ' to: ' || :itodate;
+	else
+	  lipvariable := :ipvariable;
+	end if;
+	
+	
+	
+	RETURN 
+	  SELECT
+	     line as "ROW", 
+		 :lIPVARIABLE as "STRING"		 
+	from :it;
+
+
+END;
